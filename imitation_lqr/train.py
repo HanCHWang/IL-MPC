@@ -88,6 +88,8 @@ def main():
     loss_f.write('im_loss,mse\n')
     loss_f.flush()
 
+
+
     def get_loss(x_init, _A, _B):
         F = torch.cat((expert['A'], expert['B']), dim=1) \
             .unsqueeze(0).unsqueeze(0).repeat(args.T, n_batch, 1, 1)
@@ -112,7 +114,7 @@ def main():
             detach_unconverged=False,
             n_batch=n_batch,
         )(x_init, QuadCost(expert['Q'], expert['p']), LinDx(F))
-
+        print(u_pred.size())
         traj_loss = torch.mean((u_true - u_pred)**2) + \
                     torch.mean((x_true - x_pred)**2)
         return traj_loss
