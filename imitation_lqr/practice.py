@@ -29,11 +29,24 @@ import setproctitle
 # Define data directory
 data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
-# Create TensorDatasets
+# Load tensors from the specified directory
 x_train = torch.load(os.path.join(data_dir, 'x_train.pt'))
 x_test = torch.load(os.path.join(data_dir, 'x_test.pt'))
 u_train = torch.load(os.path.join(data_dir, 'u_train.pt'))
 u_test = torch.load(os.path.join(data_dir, 'u_test.pt'))
+
+# Create TensorDatasets
+train_dataset = torch.utils.data.TensorDataset(x_train, u_train)
+test_dataset = torch.utils.data.TensorDataset(x_test, u_test)
+
+# Create DataLoaders
+batch_size = 64
+train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
+                                           batch_size=batch_size,
+                                           shuffle=True)
+test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
+                                          batch_size=batch_size,
+                                          shuffle=False)
 
 # Hyper parameters
 parser = argparse.ArgumentParser()
@@ -50,6 +63,7 @@ n_batch = 128
 num_layers = 2
 hidden_size = 128
 learning_rate = 1e-3
+num_epochs = 5
 
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 t = '.'.join(["{}={}".format(x, getattr(args, x))
