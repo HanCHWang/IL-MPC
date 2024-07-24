@@ -40,7 +40,7 @@ train_dataset = torch.utils.data.TensorDataset(x_train, u_train)
 test_dataset = torch.utils.data.TensorDataset(x_test, u_test)
 
 # Create DataLoaders
-batch_size = 64
+batch_size = 5
 train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                            batch_size=batch_size,
                                            shuffle=True)
@@ -51,7 +51,7 @@ test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
 # Hyper parameters
 parser = argparse.ArgumentParser()
 parser.add_argument('--n_state', type=int, default=3)
-parser.add_argument('--n_ctrl', type=int, default=3)
+parser.add_argument('--n_ctrl', type=int, default=4)
 parser.add_argument('--T', type=int, default=5)
 parser.add_argument('--save', type=str)
 parser.add_argument('--work', type=str, default='work')
@@ -59,11 +59,11 @@ parser.add_argument('--no-cuda', action='store_true')
 parser.add_argument('--seed', type=int, default=0)
 args = parser.parse_args()
 
-n_batch = 128
+n_batch = 64
 num_layers = 2
-hidden_size = 128
-learning_rate = 1e-3
-num_epochs = 5
+hidden_size = 32
+learning_rate = 1e-4
+num_epochs = 500
 
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 t = '.'.join(["{}={}".format(x, getattr(args, x))
@@ -88,7 +88,7 @@ torch.manual_seed(expert_seed)
 Q = torch.eye(n_sc)
 p = torch.randn(n_sc)
 
-alpha = 0.2
+alpha = 0.2  # magnitude for the state matrix A
 
 expert = dict(
     Q = torch.eye(n_sc).to(device),
@@ -151,42 +151,45 @@ model = NNController(n_state, hidden_size, num_layers, n_ctrl)
 criterion = get_loss()
 optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-# Create the state-input tensor
-F = torch.cat((A, B), dim=1) \
-                .unsqueeze(0).unsqueeze(0).repeat(T, n_batch, 1, 1)
-
 # store the loss values
 loss_values = []
 
 # Train the model!
-for i in range(500):  # episode size
-    x_init = torch.rand(n_batch, n_state).to(device)
+total_step = len(train_loader)
+for epoch in range(num_epochs):  # episode size
+    for i, (x_train, u_train) in enumerate(train_loader):
+        # Move tensors to the configured device
+        x_train = x_train.to(device)
+        u_train = u_train.to(device)
 
-    # Get the targets
-    x_true, u_true, objs_true = mpc.MPC(
-        n_state, n_ctrl, T,
-        u_lower=expert['u_lower'], u_upper=expert['u_upper'], u_init=expert['u_init'],
-        lqr_iter=100,
-        verbose=-1,
-        exit_unconverged=False,
-        detach_unconverged=False,
-        n_batch=n_batch,
-    )(x_init, QuadCost(expert['Q'], expert['p']), LinDx(F))
+        # Forward pass
+        predictions = model(x_train)
+        loss = criterion(predictions, u_train)
 
-    # Forward pass
-    predictions = model(x_init)
-    targets = u_true[0, :, :]
-    loss = criterion(predictions, targets)
+        # Backward and optimize
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
-    # Backward and optimize
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
+        # store the loss value
+        loss_values.append(loss.item())
 
-    # store the loss value
-    loss_values.append(loss.item())
-
-    if (i + 1) % 10 == 0:
-        print('Step [{}/{}], Loss: {:.4f}'.format(i + 1, 500, loss.item()))
+        if (i + 1) % 100 == 0:
+            print('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch+1, num_epochs, i + 1, total_step, loss.item()))
 
 
+# Test the model
+with torch.no_grad():
+    loss_value = []
+    for x_test, u_test in test_loader:
+        x_test = x_test.to(device)
+        u_test = u_test.to(device)
+        predictions = model(x_test)
+        loss_value.append(criterion(predictions, u_test))
+
+    print('Test Loss: {:.4f}'.format(np.mean(loss_value)))
+
+# Save the model checkpoint
+torch.save(model.state_dict(), os.path.join(args.save, 'model.pt'))
+
+# Simulate the NN controller
