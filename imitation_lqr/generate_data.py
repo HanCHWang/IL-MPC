@@ -1,7 +1,11 @@
+"""
+This code generates training and testing data for imitation_lqr.
+"""
 import torch
 from mpc import mpc
 from mpc.mpc import QuadCost, LinDx
 import os
+from lqr_controller import lqr_controller
 
 # Define parameters
 n_batch, n_state, n_ctrl, T = 2, 3, 4, 10  # Example sizes
@@ -36,15 +40,7 @@ def generate_data(num_samples):
 
         F = torch.cat((expert['A'], expert['B']), dim=1) \
             .unsqueeze(0).unsqueeze(0).repeat(T, n_batch, 1, 1)
-        x_true, u_true, objs_true = mpc.MPC(
-            n_state, n_ctrl, T,
-            u_lower=expert['u_lower'], u_upper=expert['u_upper'], u_init=expert['u_init'],
-            lqr_iter=100,
-            verbose=-1,
-            exit_unconverged=False,
-            detach_unconverged=False,
-            n_batch=n_batch,
-        )(x_init, QuadCost(expert['Q'], expert['p']), LinDx(F))
+        _, u_true, _ = lqr_controller(x_init, expert['A'], expert['B'], expert['Q'], expert['p'], expert['T'], None, None)
 
         x_data.append(x_init)
         u_data.append(u_true[0, :, :])  # Taking the control input at the first time step
