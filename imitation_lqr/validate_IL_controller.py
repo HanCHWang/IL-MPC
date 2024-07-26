@@ -81,8 +81,34 @@ for i in range(n_points):
     # Simulate NN and LQR trajectories
     for t in range(time_steps):
         u_nn = nn_controller(x_nn)  # Compute the control input using NN controller
-        _, u_seq = lqr_controller(x_init, A, B, Q, p, T, u_lower, u_upper)  # Compute the optimal control sequence using LQR controller
-        u_lqr = u_seq[0:1, :]  # take the first control action and reshape into (1, n_ctrl)
+        _, u_seq = lqr_controller(x_nn, A, B, Q, p, T, u_lower, u_upper)  # Compute the optimal control sequence using LQR controller
+        u_lqr = u_seq[0, :, :]  # take the first control action and reshape into (1, n_ctrl)
+        x_nn = torch.matmul(x_nn, A.t()) + torch.matmul(u_nn, B.t())
+        x_lqr = torch.matmul(x_lqr, A.t()) + torch.matmul(u_lqr, B.t())
+
+        nn_traj.append(x_nn.detach().numpy())
+        lqr_traj.append(x_lqr.detach().numpy())
+    nn_trajectories.append(nn_traj)
+    lqr_trajectories.append(lqr_traj)
+
+# Plot the trajectories
+for i in range(time_steps):
+    nn_traj = nn_trajectories[i]
+    lqr_traj = lqr_trajectories[i]
+
+    nn_traj = np.array(nn_traj).squeeze()
+    lqr_traj = np.array(lqr_traj).squeeze()
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(nn_traj[:, 0], nn_traj[:, 1], label='NN Controller Trajectory')
+    plt.plot(lqr_traj[:, 0], lqr_traj[:, 1], label='LQR Controller Trajectory', linestyle='dashed')
+    plt.scatter(x_init[i, 0].item(), x_init[i, 1].item(), color='red', label='Initial State')
+    plt.legend()
+    plt.xlabel('State Dimension 1')
+    plt.ylabel('State Dimension 2')
+    plt.title(f'Trajectory Comparison for Test {i+1}')
+    plt.show()
+
 
 
 
