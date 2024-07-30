@@ -26,6 +26,9 @@ import collections
 import argparse
 import setproctitle
 
+# cuda
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 # Define data directory
 data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'data')
 
@@ -48,16 +51,21 @@ test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
                                           batch_size=batch_size,
                                           shuffle=False)
 
+# Load the expert parameters
+expert_file_path = 'work/expert.pkl'
+with open(expert_file_path, 'rb') as f:
+    expert = pkl.load(f)
+
 # Hyper parameters
-parser = argparse.ArgumentParser()
-parser.add_argument('--n_state', type=int, default=3)
-parser.add_argument('--n_ctrl', type=int, default=4)
-parser.add_argument('--T', type=int, default=5)
-parser.add_argument('--save', type=str)
-parser.add_argument('--work', type=str, default='work')
-parser.add_argument('--no-cuda', action='store_true')
-parser.add_argument('--seed', type=int, default=0)
-args = parser.parse_args()
+# parser = argparse.ArgumentParser()
+# parser.add_argument('--n_state', type=int, default=3)
+# parser.add_argument('--n_ctrl', type=int, default=4)
+# parser.add_argument('--T', type=int, default=5)
+# parser.add_argument('--save', type=str)
+# parser.add_argument('--work', type=str, default='work')
+# parser.add_argument('--no-cuda', action='store_true')
+# parser.add_argument('--seed', type=int, default=0)
+# args = parser.parse_args()
 
 n_batch = 64
 num_layers = 2
@@ -65,58 +73,43 @@ hidden_size = 32
 learning_rate = 1e-4
 num_epochs = 500
 
-args.cuda = not args.no_cuda and torch.cuda.is_available()
-t = '.'.join(["{}={}".format(x, getattr(args, x))
-                for x in ['n_state', 'n_ctrl', 'T']])
-setproctitle.setproctitle('bamos.lqr.'+t+'.{}'.format(args.seed))
-if args.save is None:
-    args.save = os.path.join(args.work, t, str(args.seed))
+# args.cuda = not args.no_cuda and torch.cuda.is_available()
+# t = '.'.join(["{}={}".format(x, getattr(args, x))
+#                 for x in ['n_state', 'n_ctrl', 'T']])
+# setproctitle.setproctitle('bamos.lqr.'+t+'.{}'.format(args.seed))
+# if args.save is None:
+#     args.save = os.path.join(args.work, t, str(args.seed))
 
-if os.path.exists(args.save):
-    shutil.rmtree(args.save)
-os.makedirs(args.save, exist_ok=True)
+# if os.path.exists(args.save):
+#     shutil.rmtree(args.save)
+# os.makedirs(args.save, exist_ok=True)
 
-device = 'cuda' if args.cuda else 'cpu'
+# expert_seed = 42
+# assert expert_seed != args.seed
+# torch.manual_seed(expert_seed)
+#
+# Q = torch.eye(n_sc)
+# p = torch.randn(n_sc)
 
-n_state, n_ctrl, T = args.n_state, args.n_ctrl, args.T
-n_sc = n_state+n_ctrl
+# alpha = 0.2  # magnitude for the state matrix A
 
-expert_seed = 42
-assert expert_seed != args.seed
-torch.manual_seed(expert_seed)
-
-Q = torch.eye(n_sc)
-p = torch.randn(n_sc)
-
-alpha = 0.2  # magnitude for the state matrix A
-
-expert = dict(
-    Q = torch.eye(n_sc).to(device),
-    p = torch.randn(n_sc).to(device),
-    A = (torch.eye(n_state) + alpha*torch.randn(n_state, n_state)).to(device),
-    B = torch.randn(n_state, n_ctrl).to(device),
-    u_lower = None,
-    u_upper = None,
-    delta = None,
-    u_init = None
-)
-
-fname = os.path.join(args.save, 'expert.pkl')
-with open(fname, 'wb') as f:
-    pkl.dump(expert, f)
-
-torch.manual_seed(args.seed)
-A = (torch.eye(n_state) + alpha*torch.randn(n_state, n_state))\
-    .to(device).requires_grad_()
-B = torch.randn(n_state, n_ctrl).to(device).requires_grad_()
+Q = expert['Q'].to(device)
+p = expert['p'].to(device)
+A = expert['A'].to(device)
+B = expert['B'].to(device)
+u_lower = expert['u_lower']
+u_upper = expert['u_upper']
+delta = None
+u_init = None
+n_state, n_ctrl, T = A.size(0), B.size(1), expert['T']
+n_sc = n_state + n_ctrl
 
 
 # Define the NN controller
 class NNController(nn.Module):
-    def __init__(self, n_state, hidden_size, num_layers, n_ctrl):
+    def __init__(self, n_state, hidden_size, n_ctrl):
         super(NNController, self).__init__()
         self.hidden_size = hidden_size
-        self.num_layers = num_layers
 
         # Initialize weights and biases for all layers
         self.fc1 = nn.Linear(n_state, hidden_size)
@@ -145,7 +138,7 @@ class get_loss(nn.Module):
 
 
 # Construct the NN model
-model = NNController(n_state, hidden_size, num_layers, n_ctrl)
+model = NNController(n_state, hidden_size, n_ctrl)
 
 # Loss and optimizer
 criterion = get_loss()
@@ -190,6 +183,6 @@ with torch.no_grad():
     print('Test Loss: {:.4f}'.format(np.mean(loss_value)))
 
 # Save the model checkpoint
-torch.save(model.state_dict(), os.path.join(args.save, 'model.pt'))
+data_dir = os.path.join(os.path.dirname(__file__), 'model')
+torch.save(model.state_dict(), os.path.join(data_dir, 'model.ckpt'))
 
-# Simulate the NN controller

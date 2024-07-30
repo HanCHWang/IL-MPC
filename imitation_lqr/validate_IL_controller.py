@@ -95,7 +95,6 @@ for i in range(n_points):
 for i in range(time_steps):
     nn_traj = nn_trajectories[i]
     lqr_traj = lqr_trajectories[i]
-
     nn_traj = np.array(nn_traj).squeeze()
     lqr_traj = np.array(lqr_traj).squeeze()
 
