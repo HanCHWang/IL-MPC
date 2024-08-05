@@ -14,9 +14,10 @@ from mpc import mpc
 from mpc.mpc import QuadCost, LinDx
 import torch
 
+
 def lqr_controller(x_init, A, B, Q, p, T, u_lower, u_upper):
     n_state = A.size(0)  # dimension of the state
-    n_ctrl = B.size(0)  # dimension of the control
+    n_ctrl = B.size(1)  # dimension of the control
     n_batch = x_init.size(0)  # batch size
 
     F = torch.cat((A, B), dim = 1).unsqueeze(0).unsqueeze(0).repeat(T, n_batch, 1, 1)
