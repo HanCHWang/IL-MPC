@@ -92,7 +92,7 @@ for i in range(n_points):
     lqr_trajectories.append(lqr_traj)
 
 # Plot the trajectories
-for i in range(time_steps):
+for i in range(n_points):
     nn_traj = nn_trajectories[i]
     lqr_traj = lqr_trajectories[i]
     nn_traj = np.array(nn_traj).squeeze()
