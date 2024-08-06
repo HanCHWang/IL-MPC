@@ -81,7 +81,7 @@ for i in range(n_points):
     # Simulate NN and LQR trajectories
     for t in range(time_steps):
         u_nn = nn_controller(x_nn)  # Compute the control input using NN controller
-        _, u_seq = lqr_controller(x_nn, A, B, Q, p, T, u_lower, u_upper)  # Compute the optimal control sequence using LQR controller
+        _, u_seq = lqr_controller(x_lqr, A, B, Q, p, T, u_lower, u_upper)  # Compute the optimal control sequence using LQR controller
         u_lqr = u_seq[0, :, :]  # take the first control action and reshape into (1, n_ctrl)
         x_nn = torch.matmul(x_nn, A.t()) + torch.matmul(u_nn, B.t())
         x_lqr = torch.matmul(x_lqr, A.t()) + torch.matmul(u_lqr, B.t())
