@@ -91,22 +91,40 @@ for i in range(n_points):
     nn_trajectories.append(nn_traj)
     lqr_trajectories.append(lqr_traj)
 
-# Plot the trajectories
+
+#Determine grid size
+rows = 2
+cols = (n_points + 1) // rows
+
+# Plot the trajectories in a grid of subplots
+fig, axes = plt.subplots(nrows=rows, ncols=cols, figsize=(15, 10))
+fig.suptitle('Trajectory Comparison for NN and LQR Controllers', fontsize=16)
+
+# Flatten axes for easy iteration
+axes = axes.flatten()
+
 for i in range(n_points):
     nn_traj = nn_trajectories[i]
     lqr_traj = lqr_trajectories[i]
     nn_traj = np.array(nn_traj).squeeze()
     lqr_traj = np.array(lqr_traj).squeeze()
 
-    plt.figure(figsize=(12, 6))
-    plt.plot(nn_traj[:, 0], nn_traj[:, 1], label='NN Controller Trajectory')
-    plt.plot(lqr_traj[:, 0], lqr_traj[:, 1], label='LQR Controller Trajectory', linestyle='dashed')
-    plt.scatter(x_init[i, 0].item(), x_init[i, 1].item(), color='red', label='Initial State')
-    plt.legend()
-    plt.xlabel('State Dimension 1')
-    plt.ylabel('State Dimension 2')
-    plt.title(f'Trajectory Comparison for Test {i+1}')
-    plt.show()
+    ax = axes[i]  
+    ax.plot(nn_traj[:, 0], nn_traj[:, 1], label='NN Controller Trajectory')
+    ax.plot(lqr_traj[:, 0], lqr_traj[:, 1], label='LQR Controller Trajectory', linestyle='dashed')
+    ax.scatter(x_init[i, 0].item(), x_init[i, 1].item(), color='red', label='Initial State')
+    ax.set_xlabel('State Dimension 1')
+    ax.set_ylabel('State Dimension 2')
+    ax.set_title(f'Test {i+1}')
+    ax.legend()
+    ax.grid(True)
+
+# Hide any unused subplots
+for j in range(n_points, len(axes)):
+    fig.delaxes(axes[j])
+
+plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust layout to fit the suptitle
+plt.show()
 
 
 
